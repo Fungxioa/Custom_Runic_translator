@@ -137,7 +137,7 @@ textarea::placeholder {
 .result.rune-output {
     font-family: "Noto Runic", "Segoe UI Symbol", sans-serif;
     font-size: var(--rune-size);
-    line-height: 1.65;
+    line-height: 1.5;
     letter-spacing: 0;
     white-space: pre-wrap;
     overflow-wrap: normal;
@@ -146,36 +146,26 @@ textarea::placeholder {
 
 .rune-output .rune-cell {
     display: inline-flex;
-    width: 1.12em;
-    height: 1.4em;
+    width: 1.15em;
+    height: 1.35em;
     margin: 0;
     padding: 0;
     align-items: center;
     justify-content: center;
     vertical-align: middle;
-    box-sizing: border-box;
     overflow: visible;
 }
 
-.rune-output .rune-cell.standard .glyph {
-    display: inline-block;
-    font-family: "Noto Runic", "Segoe UI Symbol", sans-serif;
-    font-size: 0.88em;
-    line-height: 1;
-    font-weight: normal;
-    text-align: center;
-}
-
-.rune-output .rune-cell.custom svg {
+.rune-output .rune-cell svg {
     display: block;
-    width: 0.72em;
-    height: 1.08em;
+    width: 0.78em;
+    height: 1.12em;
     flex-shrink: 0;
     overflow: visible;
 }
 
 .rune-output .rune-cell.space {
-    width: 1.12em;
+    width: 1.15em;
 }
 
 .status {
@@ -216,8 +206,8 @@ kbd {
 
     <p>
         Translate letters, numbers, and punctuation into
-        your rune alphabet and back. Custom punctuation
-        uses your original rune designs.
+        your rune alphabet and back. All runes are displayed
+        at a consistent height, width, and spacing.
     </p>
 
     <div class="toolbar">
@@ -613,7 +603,6 @@ function translate(text) {
 
 function render() {
     translation = translate(input.value);
-
     output.replaceChildren();
 
     output.classList.toggle(
@@ -621,7 +610,6 @@ function render() {
         mode === "letters"
     );
 
-    // Normal text when translating runes to letters
     if (mode !== "letters") {
         output.textContent = translation;
         return;
@@ -629,7 +617,6 @@ function render() {
 
     for (const character of translation) {
 
-        // Preserve line breaks
         if (character === "\n") {
             output.append(
                 document.createElement("br")
@@ -637,55 +624,84 @@ function render() {
             continue;
         }
 
-        // Create uniform cell
         const cell = document.createElement("span");
         cell.className = "rune-cell";
 
-        // Whitespace
         if (character === " " || character === "\t") {
             cell.classList.add("space");
             cell.textContent = "\u00a0";
 
             if (character === "\t") {
-                cell.style.width = "4.48em";
+                cell.style.width = "4.6em";
             }
 
-        // Custom rune drawings
-        } else if (shapes[character]) {
-
-            cell.classList.add("custom");
-
-            cell.setAttribute(
-                "aria-label",
-                character
-            );
-
-            const svg = document.createElementNS(
-                "http://www.w3.org/2000/svg",
-                "svg"
-            );
-
-            svg.setAttribute("viewBox", "0 0 32 48");
-            svg.setAttribute("aria-hidden", "true");
-
-            svg.innerHTML = shapes[character];
-
-            cell.appendChild(svg);
-
-        // Standard Unicode runes
-        } else {
-
-            cell.classList.add("standard");
-
-            const glyph = document.createElement("span");
-
-            glyph.className = "glyph";
-            glyph.textContent = character;
-
-            cell.appendChild(glyph);
+            output.appendChild(cell);
+            continue;
         }
 
+        const svg = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "svg"
+        );
+
+        svg.setAttribute("viewBox", "0 0 32 48");
+        svg.setAttribute("aria-hidden", "true");
+
+        const group = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "g"
+        );
+
+        if (shapes[character]) {
+            group.innerHTML = shapes[character];
+        } else {
+            const text = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "text"
+            );
+
+            text.textContent = character;
+            text.setAttribute("x", "0");
+            text.setAttribute("y", "40");
+            text.setAttribute(
+                "font-family",
+                "Noto Runic, Segoe UI Symbol, serif"
+            );
+            text.setAttribute("font-size", "44");
+            text.setAttribute("fill", "currentColor");
+
+            group.appendChild(text);
+        }
+
+        svg.appendChild(group);
+        cell.appendChild(svg);
         output.appendChild(cell);
+
+        // Normalize visible glyph height and width
+        try {
+            const bounds = group.getBBox();
+
+            if (bounds.width > 0 && bounds.height > 0) {
+                const targetWidth = 26;
+                const targetHeight = 42;
+
+                const scaleX = targetWidth / bounds.width;
+                const scaleY = targetHeight / bounds.height;
+
+                const offsetX = 3 - bounds.x * scaleX;
+                const offsetY = 3 - bounds.y * scaleY;
+
+                group.setAttribute(
+                    "transform",
+                    `matrix(${scaleX} 0 0 ${scaleY} ${offsetX} ${offsetY})`
+                );
+            }
+        } catch (error) {
+            console.warn(
+                "Rune measurement failed:",
+                character
+            );
+        }
     }
 }
 
@@ -805,6 +821,11 @@ document.addEventListener("keydown", event => {
 // Initialize
 updateSize();
 render();
+
+// Re-render after the web font finishes loading
+if (document.fonts) {
+    document.fonts.ready.then(render);
+}
 
 </script>
 </body>
